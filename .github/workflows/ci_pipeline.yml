@@ -30,6 +30,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
@@ -37,14 +38,19 @@ jobs:
           cache-dependency-path: |
             AI-IDS/AI-IDS/requirements.txt
             AI-IDS/AI-IDS/requirements-dev.txt
+
       - name: Upgrade pip
         run: python -m pip install --upgrade pip wheel
+
       - name: Install deps (runtime + test/linters)
         run: pip install -r AI-IDS/AI-IDS/requirements.txt pytest ruff mypy
+
       - name: Make scripts executable
         run: chmod +x AI-IDS/AI-IDS/scripts/test_fast.sh AI-IDS/AI-IDS/scripts/test_full.sh
+
       - name: Run fast gate
-        run: bash AI-IDS/AI-IDS/scripts/test_fast.sh
+        working-directory: AI-IDS/AI-IDS
+        run: bash scripts/test_fast.sh
         env:
           LINT_STRICT: "1"
 
@@ -56,6 +62,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
@@ -63,14 +70,20 @@ jobs:
           cache-dependency-path: |
             AI-IDS/AI-IDS/requirements.txt
             AI-IDS/AI-IDS/requirements-dev.txt
+
       - name: Upgrade pip
         run: python -m pip install --upgrade pip wheel
+
       - name: Install deps
         run: pip install -r AI-IDS/AI-IDS/requirements.txt pytest ruff mypy
+
       - name: Make scripts executable
         run: chmod +x AI-IDS/AI-IDS/scripts/test_full.sh
+
       - name: Run full suite
-        run: bash AI-IDS/AI-IDS/scripts/test_full.sh
+        working-directory: AI-IDS/AI-IDS
+        run: bash scripts/test_full.sh
+
       - name: Append perf snapshot to job summary
         if: always()
         run: |
@@ -80,6 +93,7 @@ jobs:
           else
             echo "No perf output found (skipped or failed)" >> $GITHUB_STEP_SUMMARY
           fi
+
       - name: Upload sprint artifacts
         if: always()
         uses: actions/upload-artifact@v4
