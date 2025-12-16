@@ -1,24 +1,111 @@
-jobs:
-  # Only deploy if CI passed
-  check-ci:
-    runs-on: ubuntu-latest
-    outputs:
-      should_deploy: ${{ steps.check.outputs.should_deploy }}
-    steps:
-      - name: Check CI status
-        id: check
-        run: |
-          if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
-            echo "should_deploy=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_deploy=false" >> $GITHUB_OUTPUT
-            echo "CI failed, skipping deployment"
-          fi
+name: CI
 
-  # Build and push Docker image to GitHub Container Registry
+on:
+  pull_request:
+    branches: [ Dev, main ]
+    paths:
+      - "web/**"
+      - ".github/workflows/**"
+  push:
+    branches: [ Dev ]
+    paths:
+      - "web/**"
+      - ".github/workflows/**"
+
+jobs:
+  setup:
+    name: Setup (cache deps)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    outputs:
+      node-cache-hit: ${{ steps.cache-npm.outputs.cache-hit }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Cache node_modules
+        id: cache-npm
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            web/node_modules
+          key: ${{ runner.os }}-node20-${{ hashFiles('web/package-lock.json') }}
+      - name: Install deps
+        if: steps.cache-npm.outputs.cache-hit != 'true'
+        run: npm ci
+
+  # lint:
+  #   name: Lint
+  #   needs: setup
+  #   runs-on: ubuntu-latest
+  #   defaults: { run: { working-directory: web } }
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with: { node-version: 20, cache: npm, cache-dependency-path: web/package-lock.json }
+  #     - run: npm ci
+  #     - run: npm run lint
+
+  typecheck:
+    name: TypeScript
+    needs: setup
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - run: npm run typecheck
+
+  unit:
+    name: Unit tests
+    needs: [setup, typecheck]
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - run: npm run coverage
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: web/coverage
+
+  build:
+    name: Build (PR artifact)
+    needs: [unit]
+    runs-on: ubuntu-latest
+    env:
+      VITE_BASE_PATH: /web   # adjust if your GH Pages path differs
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - run: npm run build
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+
+  # Docker image build & push (only on push to main)
   build-and-push:
-    needs: check-ci
-    if: needs.check-ci.outputs.should_deploy == 'true'
+    name: Build and push Docker image to GHCR
+    needs: [build]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.meta.outputs.tags }}
@@ -67,13 +154,12 @@ jobs:
           build-args: |
             PY_VER=3.10
 
-  # Deploy to production server via SSH
+  # Deploy to production server via SSH (only on push to main)
   deploy-production:
-    needs: [check-ci, build-and-push]
-    if: needs.check-ci.outputs.should_deploy == 'true'
+    name: Deploy to production
+    needs: [build-and-push]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    # Only run if deployment secrets are configured
-    # To enable: Add DEPLOY_HOST, DEPLOY_USER, SSH_PRIVATE_KEY, GHCR_PAT, and DEPLOY_REPO_TOKEN to repo secrets
     environment:
       name: production
       url: http://${{ secrets.DEPLOY_HOST }}
@@ -83,7 +169,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           IMAGE_REPOSITORY: ${{ needs.build-and-push.outputs.image_repository }}
-          BRANCH_NAME: ${{ github.event.workflow_run.head_branch }}
+          BRANCH_NAME: ${{ github.ref_name }}
           GHCR_PAT: ${{ secrets.GHCR_PAT }}
           DEPLOY_REPO_TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
           REPO_OWNER: ${{ github.repository_owner }}
