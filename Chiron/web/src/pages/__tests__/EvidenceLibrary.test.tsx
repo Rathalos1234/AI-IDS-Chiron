@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { vi } from 'vitest'
 import EvidenceLibrary from '../EvidenceLibrary'
 import { BusinessProvider } from '../../context/BusinessContext'
+import { MemoryRouter } from 'react-router-dom'
 
 // Mock fetch used by BusinessProvider to load controls and businesses
 global.fetch = vi.fn(async (input: any) => {
@@ -55,9 +56,11 @@ afterEach(() => {
 
 test('renders evidence row and uploader name', async () => {
   render(
-    <BusinessProvider>
-      <EvidenceLibrary />
-    </BusinessProvider>
+    <MemoryRouter>
+      <BusinessProvider>
+        <EvidenceLibrary />
+      </BusinessProvider>
+    </MemoryRouter>
   )
 
   // The component shows a heading and the uploader's displayName
