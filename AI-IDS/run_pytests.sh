@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ---- Config ----
-ART_DIR="sprint_artifacts"
+ART_DIR="AI-IDS/sprint_artifacts"
 UNIT_OUT="${ART_DIR}/pytest_unit.txt"
 FULL_OUT="${ART_DIR}/pytest_full.txt"
 PERF_OUT="${ART_DIR}/pytest_perf.txt"

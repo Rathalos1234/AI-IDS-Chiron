@@ -26,9 +26,9 @@ fi
 echo "=== mypy (type check) ==="
 if command -v mypy >/dev/null 2>&1; then
   if [[ "$LINT_STRICT" == "1" ]]; then
-    mypy --ignore-missing-imports anomaly_detector.py packet_processor.py main.py
+    mypy --ignore-missing-imports AI-IDS/anomaly_detector.py AI-IDS/packet_processor.py AI-IDS/main.py
   else
-    mypy --ignore-missing-imports anomaly_detector.py packet_processor.py main.py || true
+    mypy --ignore-missing-imports AI-IDS/anomaly_detector.py AI-IDS/packet_processor.py AI-IDS/main.py || true
   fi
 else
   echo "mypy not found, skipping."
