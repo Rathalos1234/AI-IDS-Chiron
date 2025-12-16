@@ -4,6 +4,7 @@ import { doc, runTransaction, arrayUnion } from 'firebase/firestore'
 import { db, storage, isFirebaseConfigured } from '../firebase'
 import { getCurrentUserID } from '../context/AuthRoute'
 import { useBusinessContext } from '../context/BusinessContext'
+import { BusinessMember } from '../types'
 
 export function EvidenceUploader({ businessId, controlId, disabled }: { businessId: string | null; controlId?: string | null; disabled?: boolean }) {
     const [uploading, setUploading] = useState(false)
@@ -124,6 +125,7 @@ export function EvidenceUploader({ businessId, controlId, disabled }: { business
     const { selectedBusiness, currentUserId, canManageSelected } = useBusinessContext()
     const [loading, setLoading] = useState(false)
     const items = (selectedBusiness?.evidence ?? []).filter((e: any) => e.controlId === controlId || e.path?.includes(controlId))
+     const members: BusinessMember[] = selectedBusiness?.members || []
 
     // delete evidence item
     async function handleDelete(evidenceItem: any) {        //may change the uploaded by to user_name instead of user_id
@@ -181,20 +183,24 @@ export function EvidenceUploader({ businessId, controlId, disabled }: { business
 
     return (
         <div style={{ display: 'grid', gap: 8 }}>
-            {items.map((item: any) => (
-                <div key={item.id} style={{ display: 'flex', gap: 8, alignItems: 'center', border: '1px solid var(--border)', padding: 8, borderRadius: 6 }}>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600 }}>{item.name || item.filename}</div>
-                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Uploaded by {item.uploadedBy} • {new Date(item.uploadedAt).toLocaleString()}</div>
+                {items.map((item: any) => {
+                const uploader = members.find((u: BusinessMember) => u.uid === item.uploadedBy)
+                const userName = uploader?.displayName ?? uploader?.email ?? item.uploadedBy ?? 'Unknown'
+                return (
+                    <div key={item.id} style={{ display: 'flex', gap: 8, alignItems: 'center', border: '1px solid var(--border)', padding: 8, borderRadius: 6 }}>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600 }}>{item.name || item.filename}</div>
+                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Uploaded by {item.uploadedBy} • {new Date(item.uploadedAt).toLocaleString()}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button type="button" onClick={() => handleDownload(item)} style={{ padding: '6px 8px' }}>Download</button>
+                            {(item.uploadedBy === currentUserId || canManageSelected) && (
+                                <button type="button" onClick={() => handleDelete(item)} disabled={loading} style={{ padding: '6px 8px', background: '#fef2f2', border: '1px solid #fecaca' }}>Remove</button>
+                            )}
+                        </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <button type="button" onClick={() => handleDownload(item)} style={{ padding: '6px 8px' }}>Download</button>
-                        {(item.uploadedBy === currentUserId || canManageSelected) && (
-                            <button type="button" onClick={() => handleDelete(item)} disabled={loading} style={{ padding: '6px 8px', background: '#fef2f2', border: '1px solid #fecaca' }}>Remove</button>
-                        )}
-                    </div>
-                </div>
-            ))}
+                    )
+                })}
         </div>
     )
 }

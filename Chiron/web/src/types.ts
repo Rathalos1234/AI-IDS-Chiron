@@ -108,7 +108,7 @@ export interface CommentDoc {
 export interface EvidenceDoc {
   id?: string
   controlId: string
-  storagePath: string
+  path: string
   filename: string
   size: number
   contentType?: string
