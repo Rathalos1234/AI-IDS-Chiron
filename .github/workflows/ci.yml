@@ -124,18 +124,36 @@ jobs:
           else
             npm install
           fi
+lint:
+  name: Lint (non-blocking)
+  needs: setup
+  runs-on: ubuntu-latest
+  defaults:
+    run:
+      working-directory: Chiron/web
+  steps:
+    - uses: actions/checkout@v4
 
-  # lint:
-  #   name: Lint
-  #   needs: setup
-  #   runs-on: ubuntu-latest
-  #   defaults: { run: { working-directory: Chiron/web } }
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with: { node-version: 20, cache: npm, cache-dependency-path: Chiron/web/package-lock.json }
-  #     - run: npm ci
-  #     - run: npm run lint
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+        cache-dependency-path: |
+          Chiron/web/package-lock.json
+          Chiron/web/package.json
+
+    - name: Install deps
+      run: |
+        if [ -f Chiron/web/package-lock.json ]; then
+          npm ci
+        else
+          npm install
+        fi
+
+    - name: Run ESLint (non-blocking)
+      run: npm run lint
+      continue-on-error: true
+
 
   typecheck:
     name: TypeScript
