@@ -144,7 +144,7 @@
 
 .ids-btn--danger:hover:not(:disabled) {
   background: rgba(226, 77, 77, 0.35);
-  color: #fff;
+  color: var(--ids-danger);
 }
 
 .ids-btn--ghost {
@@ -196,6 +196,14 @@
   pointer-events: none;
   border-radius: var(--ids-card-radius);
   z-index: 0;
+}
+
+.ids-surface--reveal {
+  overflow: visible;
+}
+
+.ids-surface--reveal::before {
+  border-radius: var(--ids-card-radius);
 }
 
 .ids-surface > * {
@@ -332,6 +340,16 @@
   padding: 12px 14px;
   background: rgba(91, 140, 255, 0.08);
   color: inherit;
+  transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s ease;
+}
+
+.ids-recent-alert--new {
+  background: rgba(91, 140, 255, 0.12);
+  border-color: rgba(91, 140, 255, 0.4);
+  box-shadow: 0 8px 18px rgba(91, 140, 255, 0.2);
+  animation: ids-recent-alert-pop 0.5s ease;
+  position: relative;
+  z-index: 1;
 }
 
 .ids-recent-alert__top {
@@ -361,17 +379,19 @@
 }
 
 .ids-progress-bar {
-  height: 8px;
-  background: rgba(91, 140, 255, 0.12);
+  height: 10px;
+  background: rgba(91, 140, 255, 0.18);
   border-radius: 999px;
   overflow: hidden;
   position: relative;
-  border: 1px solid rgba(91, 140, 255, 0.22);
+  border: 1px solid rgba(91, 140, 255, 0.35);
+  box-shadow: inset 0 0 12px rgba(6, 10, 18, 0.25);
 }
 
 :root[data-theme="light"] .ids-progress-bar {
-  background: rgba(60, 109, 240, 0.12);
-  border-color: rgba(60, 109, 240, 0.24);
+  background: rgba(60, 109, 240, 0.16);
+  border-color: rgba(60, 109, 240, 0.32);
+  box-shadow: inset 0 0 12px rgba(6, 10, 18, 0.12);
 }
 
 .ids-progress-bar__fill {
@@ -390,6 +410,12 @@
   background: linear-gradient(90deg, rgba(39, 195, 131, 0.95), rgba(16, 185, 129, 0.95));
   box-shadow: 0 10px 26px rgba(39, 195, 131, 0.42);
   animation: ids-success-glow 2s ease-in-out infinite;
+}
+
+.ids-recent-alert--new .ids-recent-alert__top,
+.ids-recent-alert--new .ids-recent-alert__label,
+.ids-recent-alert--new .ids-recent-alert__time {
+  animation: ids-recent-alert-text 0.5s ease forwards;
 }
 
 .ids-scan-status-card {
@@ -462,8 +488,9 @@
 
 .ids-scan-status-card__progress .ids-progress-bar {
   flex: 1;
-  border-color: rgba(91, 140, 255, 0.28);
-  background: rgba(91, 140, 255, 0.16);
+  background: rgba(91, 140, 255, 0.22);
+  border-color: rgba(91, 140, 255, 0.38);
+  box-shadow: inset 0 0 14px rgba(6, 10, 18, 0.3), 0 0 18px rgba(91, 140, 255, 0.22);
 }
 
 .ids-scan-status-card__progress .ids-small {
@@ -473,8 +500,9 @@
 }
 
 :root[data-theme="light"] .ids-scan-status-card__progress .ids-progress-bar {
-  background: rgba(60, 109, 240, 0.14);
-  border-color: rgba(60, 109, 240, 0.26);
+  background: rgba(60, 109, 240, 0.18);
+  border-color: rgba(60, 109, 240, 0.34);
+  box-shadow: inset 0 0 12px rgba(6, 10, 18, 0.12), 0 0 18px rgba(60, 109, 240, 0.18);
 }
 
 .ids-scan-status-card__dot {
@@ -1101,5 +1129,74 @@ select.input:focus {
 
   .view-header h1 {
     font-size: 26px;
+  }
+}
+
+:root[data-theme="dark"] .ids-fade-slide {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.ids-health-panel-enter {
+  animation: ids-health-in 0.35s ease forwards, ids-health-out 0.4s ease forwards var(--health-life, 10s);
+}
+
+@keyframes ids-health-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ids-health-out {
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+.ids-alert-banner,
+.ids-alert-banner.success {
+  animation: ids-alert-life var(--alert-life, 2s) ease forwards;
+}
+
+@keyframes ids-alert-life {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  10%,
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes ids-recent-alert-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ids-recent-alert-text {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

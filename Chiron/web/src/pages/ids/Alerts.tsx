@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { idsLogs, idsExportLogs } from '../../services/idsApi'
+import { subscribeToIDSEvents } from '../../services/idsEventStream'
 
 interface AlertEvent {
   id: string
@@ -11,15 +12,19 @@ interface AlertEvent {
   score?: number | null
 }
 
+const PAGE_SIZE = 200
+const MAX_STREAM_BUFFER = 1000
 const IDSAlerts: React.FC = () => {
   const [items, setItems] = useState<AlertEvent[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fIp, setFIp] = useState('')
   const [fSeverity, setFSeverity] = useState('')
   const [fType, setFType] = useState('')
   const [fFrom, setFFrom] = useState('')
   const [fTo, setFTo] = useState('')
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const formatScore = (score?: number | null): string => {
     return typeof score === 'number' && !isNaN(score) ? score.toFixed(3) : '—'
   }
@@ -77,25 +82,40 @@ const IDSAlerts: React.FC = () => {
     }
   }
 
-  const loadData = async () => {
+  const loadData = async (options: { append?: boolean; cursor?: string | null; showSpinner?: boolean } = {}) => {
+    const { append = false, cursor = null, showSpinner = false } = options
     try {
-      setLoading(true)
+      if (showSpinner) setLoading(true)
       setError(null)
       const data = await idsLogs({
-        limit: 200,
+        limit: PAGE_SIZE,
         ip: fIp || undefined,
         severity: fSeverity || undefined,
         type: fType || undefined,
         from: fFrom || undefined,
         to: fTo || undefined,
+        cursor: cursor || undefined,
       })
       const page = Array.isArray(data) ? data : data.items || []
       const normalized = page.map(normalize).filter((row: AlertEvent | null): row is AlertEvent => row !== null)
-      setItems(normalized)
+      if (append) {
+        setItems((prevItems) => {
+          const existing = new Set(prevItems.map(item => item.id))
+          const merged = normalized.filter((item: AlertEvent) => !existing.has(item.id))
+          return [...prevItems, ...merged]
+        })
+      } else {
+        setItems(normalized)
+      }
+      const next = (typeof data === 'object' && !Array.isArray(data) && typeof data?.next_cursor === 'string')
+        ? data.next_cursor
+        : null
+      setNextCursor(next)
     } catch (e: any) {
       setError(e?.error || e?.message || 'Failed to load alerts')
     } finally {
-      setLoading(false)
+      if (showSpinner) setLoading(false)
+      if (append) setLoadingMore(false)
     }
   }
 
@@ -128,8 +148,33 @@ const IDSAlerts: React.FC = () => {
   }
 
   useEffect(() => {
-    loadData()
+    loadData({ showSpinner: true })
   }, [])
+
+  useEffect(() => {
+    const unsubscribe = subscribeToIDSEvents('alert', (newAlert) => {
+      setItems((prevItems) => {
+        const normalized = normalize(newAlert)
+        if (!normalized) return prevItems
+
+        const matchesIp = !fIp || normalized.ip === fIp
+        const matchesSeverity = !fSeverity || normalized.severity?.toLowerCase() === fSeverity.toLowerCase()
+        const matchesType = !fType || normalized.type === fType
+        const matchesFrom = !fFrom || normalized.ts >= fFrom
+        const matchesTo = !fTo || normalized.ts <= fTo
+        if (!(matchesIp && matchesSeverity && matchesType && matchesFrom && matchesTo)) {
+          return prevItems
+        }
+
+        const exists = prevItems.some(item => item.id === normalized.id)
+        if (exists) return prevItems
+        return [normalized, ...prevItems].slice(0, MAX_STREAM_BUFFER)
+      })
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [fIp, fSeverity, fType, fFrom, fTo])
 
   const formatDate = (ts: string) => {
     if (!ts) return ''
@@ -140,6 +185,14 @@ const IDSAlerts: React.FC = () => {
     if (!ts) return ''
     const timePart = ts.split('T')[1]
     return timePart ? timePart.slice(0, 5) : ''
+  }
+
+  const getSeverityBadgeClass = (severity?: string) => {
+    if (!severity) return 'low'
+    const lower = severity.toLowerCase()
+    if (lower === 'high' || lower === 'critical') return 'high'
+    if (lower === 'medium') return 'medium'
+    return 'low'
   }
 
   return (
@@ -191,10 +244,10 @@ const IDSAlerts: React.FC = () => {
               className="ids-input"
               value={fTo}
               onChange={(e) => setFTo(e.target.value)}
-              placeholder="To ISO"
+              placeholder="To ISO (2025-10-01T00:00:00Z)"
               style={{ minWidth: '220px' }}
             />
-            <button className="ids-btn ids-btn--primary" onClick={loadData} disabled={loading}>
+            <button className="ids-btn ids-btn--primary" onClick={() => loadData({ showSpinner: true })} disabled={loading}>
               {loading ? 'Loading…' : 'Apply'}
             </button>
           </div>
@@ -233,7 +286,9 @@ const IDSAlerts: React.FC = () => {
                     <td style={{ textTransform: 'capitalize' }}>{e.type}</td>
                     <td>
                       {e.severity ? (
-                        <span className={`ids-badge ${e.severity}`}>{e.severity}</span>
+                        <span className={`ids-badge ${getSeverityBadgeClass(e.severity)}`}>
+                          {e.severity}
+                        </span>
                       ) : (
                         '—'
                       )}
@@ -245,6 +300,21 @@ const IDSAlerts: React.FC = () => {
               )}
             </tbody>
           </table>
+          {items.length > 0 && nextCursor && (
+            <div style={{ marginTop: '16px', textAlign: 'center' }}>
+              <button
+                className="ids-btn"
+                onClick={() => {
+                  if (!nextCursor) return
+                  setLoadingMore(true)
+                  loadData({ append: true, cursor: nextCursor })
+                }}
+                disabled={loadingMore}
+              >
+                {loadingMore ? 'Loading…' : 'Load more'}
+              </button>
+            </div>
+          )}
         </section>
     </div>
   )

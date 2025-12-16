@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { idsBlocks, idsBlockIp, idsUnblockIp, idsTrustedList, idsTrustIp, idsUntrustIp } from '../../services/idsApi'
+import { subscribeToIDSEvents } from '../../services/idsEventStream'
 
 interface Block {
   id: string
@@ -24,6 +25,7 @@ interface TableEntry {
 }
 
 const IDSBlocks: React.FC = () => {
+  const ALERT_DISMISS_MS = 2000
   const [blocks, setBlocks] = useState<Block[]>([])
   const [trusted, setTrusted] = useState<TrustedIp[]>([])
   const [loading, setLoading] = useState(false)
@@ -33,16 +35,33 @@ const IDSBlocks: React.FC = () => {
   const [reason, setReason] = useState('')
   const [duration, setDuration] = useState('')
   const [note, setNote] = useState('')
+  const friendlyError = (err: any, fallback: string) => {
+    const code = typeof err?.error === 'string' ? err.error.toLowerCase() : ''
+    switch (code) {
+      case 'bad_ip':
+        return 'Please enter a valid IPv4 or IPv6 address.'
+      case 'trusted_ip':
+        return 'That address is trusted (please remove it from the trusted list manually first).'
+      case 'block_exists':
+        return 'That address is already blocked.'
+      case 'not_blocked':
+        return 'That address is not currently blocked.'
+      case 'not_trusted':
+        return 'That address is not on the trusted list.'
+      default:
+        return err?.message || fallback
+    }
+  }
   const setStatusMessage = (msg: string) => {
     setError(null)
     setStatus(msg)
-    setTimeout(() => setStatus(null), 4000)
+    setTimeout(() => setStatus(null), ALERT_DISMISS_MS)
   }
 
   const setErrorMessage = (msg: string) => {
     setStatus(null)
     setError(msg)
-    setTimeout(() => setError(null), 4000)
+    setTimeout(() => setError(null), ALERT_DISMISS_MS)
   }
 
   const deriveActiveBlocks = (list: Block[]): Block[] => {
@@ -72,7 +91,7 @@ const IDSBlocks: React.FC = () => {
       setBlocks(Array.isArray(blocksData.active) ? blocksData.active : deriveActiveBlocks(rawBlocks))
       setTrusted(Array.isArray(trustedData) ? trustedData : trustedData.items || [])
     } catch (e: any) {
-      setErrorMessage(e?.error || e?.message || 'Failed to load data')
+      setErrorMessage(friendlyError(e, 'Failed to load data'))
     } finally {
       setLoading(false)
     }
@@ -90,7 +109,7 @@ const IDSBlocks: React.FC = () => {
       setDuration('')
       await refresh()
     } catch (e: any) {
-      setErrorMessage(e?.error || e?.message || 'Failed to block IP')
+      setErrorMessage(friendlyError(e, 'Failed to block IP'))
     }
   }
 
@@ -100,7 +119,7 @@ const IDSBlocks: React.FC = () => {
       setStatusMessage(`Unblocked ${addr}`)
       await refresh()
     } catch (e: any) {
-      setErrorMessage(e?.error || e?.message || 'Failed to unblock IP')
+      setErrorMessage(friendlyError(e, 'Failed to unblock IP'))
     }
   }
 
@@ -114,7 +133,7 @@ const IDSBlocks: React.FC = () => {
       setNote('')
       await refresh()
     } catch (e: any) {
-      setErrorMessage(e?.error || e?.message || 'Failed to trust IP')
+      setErrorMessage(friendlyError(e, 'Failed to trust IP'))
     }
   }
 
@@ -124,12 +143,21 @@ const IDSBlocks: React.FC = () => {
       setStatusMessage(`Removed ${addr} from trusted list`)
       await refresh()
     } catch (e: any) {
-      setErrorMessage(e?.error || e?.message || 'Failed to untrust IP')
+      setErrorMessage(friendlyError(e, 'Failed to untrust IP'))
     }
   }
 
   useEffect(() => {
     refresh()
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = subscribeToIDSEvents('block', (blockEvent) => {
+      refresh()
+    })
+    return () => {
+      unsubscribe()
+    }
   }, [])
 
   const tableEntries: TableEntry[] = [
@@ -181,16 +209,18 @@ const IDSBlocks: React.FC = () => {
             </button>
           </div>
         </div>
-        {error && (
-          <div className="ids-alert-banner" style={{ marginBottom: '16px' }}>
-            {error}
-          </div>
-        )}
-        {status && (
-          <div className="ids-alert-banner success" style={{ marginBottom: '16px' }}>
-            {status}
-          </div>
-        )}
+        <div className="ids-stack" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {error && (
+            <div className="ids-alert-banner" style={{ '--alert-life': '2s' } as React.CSSProperties}>
+              {error}
+            </div>
+          )}
+          {status && (
+            <div className="ids-alert-banner success" style={{ '--alert-life': '2s' } as React.CSSProperties}>
+              {status}
+            </div>
+          )}
+        </div>
         <section className="ids-surface ids-surface--soft ids-fade-in" style={{ marginBottom: '20px', animationDelay: '0s' }}>
           <div className="ids-actions-row" style={{ flexWrap: 'wrap', gap: '12px' }}>
             <input

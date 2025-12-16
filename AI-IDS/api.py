@@ -815,6 +815,12 @@ def stats():
     require_auth()
     a = webdb.list_alerts(limit=200)
     b = webdb.list_blocks(limit=200)
+    try:
+        total_alerts = webdb.count_alerts()
+        total_blocks = webdb.count_blocks()
+    except Exception:
+        total_alerts = len(a)
+        total_blocks = len(b)
     # Take a stable snapshot of the current scan state.
     with _SCAN_LOCK:
         scan_snapshot = dict(_SCAN)
@@ -825,7 +831,12 @@ def stats():
     ts_out = last_ts or _iso_utc(_utcnow())
     payload = {
         "ok": True,
-        "counts": {"alerts_200": len(a), "blocks_200": len(b)},
+        "counts": {
+            "alerts_200": len(a),
+            "blocks_200": len(b),
+            "alerts_total": int(total_alerts),
+            "blocks_total": int(total_blocks),
+        },
         # Keep this stable across refreshes when we know a last scan time.
         "ts": ts_out,
         "last_scan_ts": last_ts,
@@ -1069,7 +1080,7 @@ def add_trusted():
             {
                 "ok": False,
                 "error": "ip_blocked",
-                "message": "Unblock this IP before adding it to Trusted.",
+                "message": "Unblock this IP before adding it to trusted.",
             }
         ), 409
     try:
@@ -1314,21 +1325,29 @@ def healthz_api():
 def get_logs():
     require_auth()
     q = request.args
+    limit = int(q.get("limit", 200))
     try:
         items = webdb.list_log_events_filtered(
-            limit=int(q.get("limit", 200)),
+            limit=limit,
             ip=q.get("ip") or None,
             severity=q.get("severity") or None,
             kind=q.get("type") or None,
             ts_from=q.get("from") or None,
             ts_to=q.get("to") or None,
+            cursor_ts=q.get("cursor") or None,
         )
     except sqlite3.OperationalError as exc:
         handled = _handle_disk_full(exc)
         if handled:
             return handled
         raise
-    return jsonify({"ok": True, "items": items})
+    next_cursor = None
+    if items and len(items) == limit:
+        last = items[-1]
+        last_ts = last.get("ts")
+        if isinstance(last_ts, str) and last_ts:
+            next_cursor = last_ts
+    return jsonify({"ok": True, "items": items, "next_cursor": next_cursor})
 
 
 @app.get("/api/logs/export")
@@ -1376,22 +1395,39 @@ def sse_events():
     require_auth()
 
     def gen():
-        last_alert_id = None
-        last_block_id = None
+        ALERT_BUFFER = 200
+        BLOCK_BUFFER = 200
+        seen_alert_ids: deque[str] = deque()
+        seen_block_ids: deque[str] = deque()
+        seen_alert_set: set[str] = set()
+        seen_block_set: set[str] = set()
         last_scan = None
+
+        def _remember(
+            new_id: Optional[str], buf: deque[str], buf_set: set[str], cap: int
+        ) -> bool:
+            if not new_id:
+                return False
+            if new_id in buf_set:
+                return False
+            buf.append(new_id)
+            buf_set.add(new_id)
+            while len(buf) > cap:
+                oldest = buf.popleft()
+                buf_set.discard(oldest)
+            return True
+
         # immediate keep-alive
         yield ": ok\n\n"
         while True:
-            # newest alert
-            a = webdb.list_alerts(limit=1)
-            if a and a[0]["id"] != last_alert_id:
-                last_alert_id = a[0]["id"]
-                yield f"event: alert\ndata: {json.dumps(a[0])}\n\n"
-            # newest block/unblock
-            b = webdb.list_blocks(limit=1)
-            if b and b[0]["id"] != last_block_id:
-                last_block_id = b[0]["id"]
-                yield f"event: block\ndata: {json.dumps(b[0])}\n\n"
+            alerts = webdb.list_alerts(limit=25)
+            for alert in reversed(alerts):
+                if _remember(alert.get("id"), seen_alert_ids, seen_alert_set, ALERT_BUFFER):
+                    yield f"event: alert\ndata: {json.dumps(alert)}\n\n"
+            blocks = webdb.list_blocks(limit=25)
+            for block in reversed(blocks):
+                if _remember(block.get("id"), seen_block_ids, seen_block_set, BLOCK_BUFFER):
+                    yield f"event: block\ndata: {json.dumps(block)}\n\n"
             # scan status updates
             with _SCAN_LOCK:
                 scan_snapshot = dict(_SCAN)
@@ -1401,7 +1437,7 @@ def sse_events():
                 yield f"event: scan\ndata: {json.dumps(payload)}\n\n"
             # heartbeat (helps some proxies)
             yield ": ping\n\n"
-            time.sleep(1.5)
+            time.sleep(1.0)
 
     resp = Response(stream_with_context(gen()), mimetype="text/event-stream")
     resp.headers["Cache-Control"] = "no-cache"

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FC } from 'react'
+import { useEffect, useState, type FC, type CSSProperties } from 'react'
 import { auth, db, isFirebaseConfigured } from '../firebase'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import {
@@ -7,10 +7,10 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from 'firebase/auth'
-import { idsSettings, idsUpdateSettings } from '../services/idsApi'
+import { idsSettings, idsUpdateSettings, idsRunRetention, idsDownloadBackup, idsResetData, idsHealthCheckDetailed } from '../services/idsApi'
 
 type SettingsTab = 'chiron' | 'ai-ids'
-type ChironSection = 'user' | 'password' | 'mfa' | 'support'
+type ChironSection = 'user' | 'password' | 'mfa' | 'support' | 'operations'
 type IconProps = { className?: string }
 type IconComponent = FC<IconProps>
 
@@ -21,8 +21,11 @@ const HelpIcon: IconComponent = () => null
 const EyeIcon: IconComponent = () => null
 const EyeOffIcon: IconComponent = () => null
 const SaveIcon: IconComponent = () => null
+const SettingsIcon: IconComponent = () => null
 
 export default function UnifiedSettings() {
+  const ALERT_DISMISS_MS = 2000
+  const alertLifeSeconds = `${Math.max(ALERT_DISMISS_MS - 200, 400) / 1000}s`
   const [activeTab, setActiveTab] = useState<SettingsTab>('chiron')
   const [activeChironSection, setActiveChironSection] = useState<ChironSection>('user')
 
@@ -46,6 +49,17 @@ export default function UnifiedSettings() {
   const [idsFieldErrors, setIdsFieldErrors] = useState<Record<string, string | null>>({})
   const [idsFieldTouched, setIdsFieldTouched] = useState<Record<string, boolean>>({})
   const [showAllErrors, setShowAllErrors] = useState(false)
+
+  // Stuff from AI-IDS Operations (in settings on the old UI)
+  const [opsLoading, setOpsLoading] = useState<string | null>(null)
+  const [opsMsg, setOpsMsg] = useState<string | null>(null)
+  const [opsErr, setOpsErr] = useState<string | null>(null)
+  const [healthStatus, setHealthStatus] = useState<any>(null)
+  useEffect(() => {
+    if (!healthStatus) return
+    const timer = setTimeout(() => setHealthStatus(null), 12000)
+    return () => clearTimeout(timer)
+  }, [healthStatus])
 
   const settingFields = [
     {
@@ -175,10 +189,10 @@ export default function UnifiedSettings() {
       }
 
       setSaveMsg('Profile saved!')
-      setTimeout(() => setSaveMsg(null), 3000)
+      setTimeout(() => setSaveMsg(null), ALERT_DISMISS_MS)
     } catch (e: any) {
       setSaveErr(e?.message ?? 'Failed to save changes.')
-      setTimeout(() => setSaveErr(null), 4000)
+        setTimeout(() => setSaveErr(null), ALERT_DISMISS_MS)
     } finally {
       setSaving(false)
     }
@@ -262,7 +276,7 @@ export default function UnifiedSettings() {
     try {
       await idsUpdateSettings(idsConfig)
       setIdsMsg('Settings saved.')
-      setTimeout(() => setIdsMsg(null), 3000)
+      setTimeout(() => setIdsMsg(null), ALERT_DISMISS_MS)
       const touched: Record<string, boolean> = {}
       for (const field of settingFields) {
         touched[field.key] = false
@@ -271,7 +285,7 @@ export default function UnifiedSettings() {
       setShowAllErrors(false)
     } catch (e: any) {
       setIdsErr(e?.error || e?.message || 'Failed to save settings')
-      setTimeout(() => setIdsErr(null), 4000)
+      setTimeout(() => setIdsErr(null), ALERT_DISMISS_MS)
     } finally {
       setIdsSaving(false)
     }
@@ -294,7 +308,7 @@ export default function UnifiedSettings() {
     setIdsFieldTouched(touched)
     setShowAllErrors(false)
     setIdsMsg('Settings reset to defaults. Make sure to Save')
-    setTimeout(() => setIdsMsg(null), 4000)
+    setTimeout(() => setIdsMsg(null), ALERT_DISMISS_MS)
   }
 
   useEffect(() => {
@@ -310,17 +324,17 @@ export default function UnifiedSettings() {
       <h3 style={{ margin: '0 0 12px' }}>Account Information</h3>
 
       {!isFirebaseConfigured && (
-        <div className="alert-banner" style={{ marginBottom: '16px' }}>
+        <div className="ids-alert-banner" style={{ marginBottom: '16px' }}>
           Firebase isn't configured in this environment. Changes won't persist.
         </div>
       )}
       {saveMsg && (
-        <div className="alert-banner success" style={{ marginBottom: '16px' }}>
+        <div className="ids-alert-banner success" style={{ marginBottom: '16px' }}>
           {saveMsg}
         </div>
       )}
       {saveErr && (
-        <div className="alert-banner" style={{ marginBottom: '16px' }}>
+        <div className="ids-alert-banner" style={{ marginBottom: '16px' }}>
           {saveErr}
         </div>
       )}
@@ -441,7 +455,7 @@ export default function UnifiedSettings() {
         </button>
       </div>
       {mfaEnabled && (
-        <div className="alert-banner success" style={{ marginTop: '16px' }}>
+        <div className="ids-alert-banner success" style={{ marginTop: '16px' }}>
           MFA is enabled!
         </div>
       )}
@@ -457,6 +471,75 @@ export default function UnifiedSettings() {
       </button>
     </div>
   )
+
+  const handleRunRetention = async () => {
+    setOpsLoading('retention')
+    setOpsMsg(null)
+    setOpsErr(null)
+    try {
+      await idsRunRetention()
+      setOpsMsg('Retention job completed done')
+      setTimeout(() => setOpsMsg(null), ALERT_DISMISS_MS)
+    } catch (e: any) {
+      setOpsErr(e?.error || e?.message || 'Failed to run retention')
+      setTimeout(() => setOpsErr(null), ALERT_DISMISS_MS)
+    } finally {
+      setOpsLoading(null)
+    }
+  }
+
+  const handleDownloadBackup = async () => {
+    setOpsLoading('backup')
+    setOpsMsg(null)
+    setOpsErr(null)
+    try {
+      await idsDownloadBackup()
+      setOpsMsg('Database backup downloaded')
+      setTimeout(() => setOpsMsg(null), ALERT_DISMISS_MS)
+    } catch (e: any) {
+      setOpsErr(e?.error || e?.message || 'Failed to download backup')
+      setTimeout(() => setOpsErr(null), ALERT_DISMISS_MS)
+    } finally {
+      setOpsLoading(null)
+    }
+  }
+
+  const handleResetData = async () => {
+    const confirmed = window.confirm('Are you sure you want to reset all data? This will clear alerts, blocks, devices, and banned/trusted IPs. This action cannot be undone.')
+    if (!confirmed) return
+
+    setOpsLoading('reset')
+    setOpsMsg(null)
+    setOpsErr(null)
+    try {
+      await idsResetData()
+      setOpsMsg('Data reset completed')
+      setTimeout(() => setOpsMsg(null), ALERT_DISMISS_MS)
+    } catch (e: any) {
+      setOpsErr(e?.error || e?.message || 'Failed to reset data')
+      setTimeout(() => setOpsErr(null), ALERT_DISMISS_MS)
+    } finally {
+      setOpsLoading(null)
+    }
+  }
+
+  const handleHealthCheck = async () => {
+    setOpsLoading('health')
+    setOpsMsg(null)
+    setOpsErr(null)
+    setHealthStatus(null)
+    try {
+      const status = await idsHealthCheckDetailed()
+      setHealthStatus(status)
+      setOpsMsg('Health check done')
+      setTimeout(() => setOpsMsg(null), ALERT_DISMISS_MS)
+    } catch (e: any) {
+      setOpsErr(e?.error || e?.message || 'Health check failed')
+      setTimeout(() => setOpsErr(null), ALERT_DISMISS_MS)
+    } finally {
+      setOpsLoading(null)
+    }
+  }
 
   const renderChironContent = () => {
     const chironNavigationItems: { id: ChironSection; label: string; icon: IconComponent }[] = [
@@ -527,10 +610,99 @@ export default function UnifiedSettings() {
       )
     }
 
+    const renderOpsCard = (
+      <section className="surface surface--soft">
+        <div style={{ marginBottom: '16px' }}>
+          <h3 style={{ margin: 0 }}>Operations</h3>
+          <p className="small" style={{ marginTop: '4px', color: 'var(--ids-muted)' }}>
+            Maintenance and backup utilities for the AI-IDS backend.
+          </p>
+        </div>
+
+        {opsMsg && (
+          <div className="ids-alert-banner success" style={{ marginBottom: '16px', '--alert-life': '2s' } as CSSProperties}>
+            {opsMsg}
+          </div>
+        )}
+        {opsErr && (
+          <div className="ids-alert-banner" style={{ marginBottom: '16px', '--alert-life': '2s' } as CSSProperties}>
+            {opsErr}
+          </div>
+        )}
+
+        <div
+          className="ids-actions-row"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '14px',
+            width: '100%',
+          }}
+        >
+          <button
+            onClick={handleRunRetention}
+            disabled={opsLoading === 'retention'}
+            className="ids-btn"
+            style={{
+              width: '100%',
+              background: 'linear-gradient(135deg, rgba(91, 140, 255, 0.22), rgba(91, 140, 255, 0.08))',
+              borderColor: 'rgba(91, 140, 255, 0.35)',
+              color: 'var(--ids-fg)',
+            }}
+          >
+            {opsLoading === 'retention' ? 'Running…' : 'Run Retention Now'}
+          </button>
+
+          <button
+            onClick={handleDownloadBackup}
+            disabled={opsLoading === 'backup'}
+            className="ids-btn"
+            style={{
+              width: '100%',
+              background: 'linear-gradient(135deg, rgba(91, 140, 255, 0.18), rgba(91, 140, 255, 0.06))',
+              borderColor: 'rgba(91, 140, 255, 0.3)',
+              color: 'var(--ids-fg)',
+            }}
+          >
+            {opsLoading === 'backup' ? 'Downloading…' : 'Download DB Backup'}
+          </button>
+
+          <button
+            onClick={handleHealthCheck}
+            disabled={opsLoading === 'health'}
+            className="ids-btn"
+            style={{
+              width: '100%',
+              background: 'linear-gradient(135deg, rgba(67, 211, 173, 0.22), rgba(67, 211, 173, 0.08))',
+              borderColor: 'rgba(67, 211, 173, 0.35)',
+              color: 'var(--ids-fg)',
+            }}
+          >
+            {opsLoading === 'health' ? 'Checking…' : 'Health Check'}
+          </button>
+
+          <button
+            onClick={handleResetData}
+            disabled={opsLoading === 'reset'}
+            className="ids-btn"
+            style={{
+              width: '100%',
+              background: 'linear-gradient(135deg, rgba(226, 77, 77, 0.25), rgba(226, 77, 77, 0.1))',
+              color: 'var(--ids-danger)',
+              borderColor: 'rgba(226, 77, 77, 0.4)',
+            }}
+          >
+            {opsLoading === 'reset' ? 'Resetting…' : 'Reset Data'}
+          </button>
+        </div>
+
+      </section>
+    )
+
     return (
-      <div className="stack">
-        {idsErr && <div className="alert-banner" style={{ marginBottom: '16px' }}>{idsErr}</div>}
-        {idsMsg && <div className="alert-banner success" style={{ marginBottom: '16px' }}>{idsMsg}</div>}
+      <div className="stack" style={{ gap: '20px' }}>
+        {idsErr && <div className="ids-alert-banner" style={{ marginBottom: '16px' }}>{idsErr}</div>}
+        {idsMsg && <div className="ids-alert-banner success" style={{ marginBottom: '16px' }}>{idsMsg}</div>}
         <section className="surface surface--soft">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 style={{ margin: 0 }}>IDS Configuration</h3>
@@ -575,6 +747,33 @@ export default function UnifiedSettings() {
             })}
           </div>
         </section>
+        {renderOpsCard}
+        {healthStatus && (
+          <section
+            className="surface surface--soft ids-health-panel-enter"
+            style={{ padding: '12px', '--health-life': '11s' } as CSSProperties}
+          >
+            <h4 style={{ margin: '0 0 8px', fontSize: '14px' }}>Health Status</h4>
+            <div className="stack small" style={{ gap: '6px' }}>
+              <div>
+                <strong>Status:</strong> {healthStatus.ok ? 'Healthy' : 'Unhealthy'}
+              </div>
+              {healthStatus.time && (
+                <div>
+                  <strong>Timestamp:</strong> {new Date(healthStatus.time).toLocaleString()}
+                </div>
+              )}
+              {typeof healthStatus.uptime_sec === 'number' && (
+                <div>
+                  <strong>Uptime:</strong> {Math.round(healthStatus.uptime_sec)} seconds
+                </div>
+              )}
+            </div>
+            <div className="small" style={{ marginTop: '6px', color: 'var(--ids-muted)' }}>
+              This panel will disappear shortly.
+            </div>
+          </section>
+        )}
       </div>
     )
   }

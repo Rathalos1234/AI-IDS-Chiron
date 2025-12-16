@@ -160,6 +160,18 @@ def list_alerts(limit: int = 100, cursor: Optional[str] = None):
         return [dict(r) for r in rows]
 
 
+def count_alerts() -> int:
+    with closing(_con()) as con:
+        row = con.execute("SELECT COUNT(1) FROM alerts").fetchone()
+        return int(row[0]) if row else 0
+
+
+def count_blocks() -> int:
+    with closing(_con()) as con:
+        row = con.execute("SELECT COUNT(1) FROM blocks").fetchone()
+        return int(row[0]) if row else 0
+
+
 def list_blocks(limit=100):
     with closing(_con()) as con:
         return [
@@ -395,6 +407,7 @@ def list_log_events_filtered(
     kind: str | None = None,  # 'alert' or 'block'
     ts_from: str | None = None,  # ISO 8601 (inclusive)
     ts_to: str | None = None,  # ISO 8601 (inclusive)
+    cursor_ts: str | None = None,  # exclusive older than cursor
 ):
     params: list[Any] = []
 
@@ -422,6 +435,9 @@ def list_log_events_filtered(
     if ts_to:
         where.append("ts <= ?")
         params.append(ts_to)
+    if cursor_ts:
+        where.append("ts < ?")
+        params.append(cursor_ts)
 
     q = f"SELECT * FROM ({base})"
     if where:

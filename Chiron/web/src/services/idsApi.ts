@@ -126,6 +126,13 @@ export const idsStartDeviceScan = () => {
 }
 
 export const idsDeviceScanStatus = () => authJson('/api/scan/status')
+export const idsUpdateDeviceName = (ip: string, name: string) => {
+  return authJson('/api/device', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip, name }),
+  })
+}
 export const idsSettings = () => authJson('/api/settings')
 export const idsUpdateSettings = (settings: any) => {
   return authJson('/api/settings', {
@@ -156,6 +163,7 @@ interface LogsParams {
   type?: string
   from?: string
   to?: string
+  cursor?: string
 }
 
 export const idsLogs = (params: LogsParams = {}) => {
@@ -166,6 +174,7 @@ export const idsLogs = (params: LogsParams = {}) => {
   if (params.type) queryParams.append('type', params.type)
   if (params.from) queryParams.append('from', params.from)
   if (params.to) queryParams.append('to', params.to)
+  if (params.cursor) queryParams.append('cursor', params.cursor)
   const query = queryParams.toString() ? `?${queryParams.toString()}` : ''
   return authJson(`/api/logs${query}`)
 }
@@ -196,5 +205,30 @@ export const idsHealthCheck = () => fetch(`${IDS_API_BASE}/healthz`).then((res) 
 export const idsIsAuthenticated = (): boolean => {
   return getStoredToken() !== null
 }
+
+export const idsRunRetention = () => {
+  return authJson('/api/retention/run', { method: 'POST' })
+}
+
+export const idsDownloadBackup = async () => {
+  const res = await authFetch('/api/backup/db')
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const blob = await res.blob()
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `ids-backup-${Date.now()}.db`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  window.URL.revokeObjectURL(url)
+  return blob
+}
+
+export const idsResetData = () => {
+  return authJson('/api/ops/reset', { method: 'POST' })
+}
+
+export const idsHealthCheckDetailed = () => authJson('/api/healthz')
 
 export { clearStoredToken as idsClearToken }
