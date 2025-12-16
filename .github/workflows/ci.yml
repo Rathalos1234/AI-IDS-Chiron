@@ -27,9 +27,6 @@ jobs:
     name: Lint + Unit (PR gate)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: AI-IDS
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,16 +36,16 @@ jobs:
           python-version: "3.10"
           cache: "pip"
           cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
+            AI-IDS/requirements.txt
+            AI-IDS/requirements-dev.txt
       - name: Upgrade pip
         run: python -m pip install --upgrade pip wheel
       - name: Install deps (runtime + test/linters)
-        run: pip install -r requirements.txt pytest ruff mypy
+        run: pip install -r AI-IDS/requirements.txt pytest ruff mypy
       - name: Make scripts executable
-        run: chmod +x scripts/test_fast.sh scripts/test_full.sh
+        run: chmod +x AI-IDS/scripts/test_fast.sh AI-IDS/scripts/test_full.sh
       - name: Run fast gate
-        run: bash scripts/test_fast.sh
+        run: bash AI-IDS/scripts/test_fast.sh
         env:
           LINT_STRICT: "1"
 
@@ -56,9 +53,6 @@ jobs:
     name: Unit + Integration (+ perf)
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: AI-IDS
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,16 +62,16 @@ jobs:
           python-version: "3.10"
           cache: "pip"
           cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
+            AI-IDS/requirements.txt
+            AI-IDS/requirements-dev.txt
       - name: Upgrade pip
         run: python -m pip install --upgrade pip wheel
       - name: Install deps
-        run: pip install -r requirements.txt pytest ruff mypy
+        run: pip install -r AI-IDS/requirements.txt pytest ruff mypy
       - name: Make scripts executable
-        run: chmod +x scripts/test_full.sh
+        run: chmod +x AI-IDS/scripts/test_full.sh
       - name: Run full suite
-        run: bash scripts/test_full.sh
+        run: bash AI-IDS/scripts/test_full.sh
       - name: Append perf snapshot to job summary
         if: always()
         run: |
@@ -111,8 +105,8 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: |
-            package-lock.json
-            package.json
+            Chiron/web/package-lock.json
+            Chiron/web/package.json
       - name: Cache node_modules
         id: cache-npm
         uses: actions/cache@v4
@@ -120,8 +114,9 @@ jobs:
           path: |
             ~/.npm
             Chiron/web/node_modules
-          key: ${{ runner.os }}-node20-${{ hashFiles('package-lock.json', 'package.json') }}
+          key: ${{ runner.os }}-node20-${{ hashFiles('Chiron/web/package-lock.json', 'Chiron/web/package.json') }}
       - name: Install deps
+        working-directory: Chiron/web
         if: steps.cache-npm.outputs.cache-hit != 'true'
         run: npm ci
 
@@ -149,8 +144,8 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: |
-            package-lock.json
-            package.json
+            Chiron/web/package-lock.json
+            Chiron/web/package.json
       - run: npm ci
       - run: npm run typecheck
 
@@ -190,8 +185,8 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: |
-            package-lock.json
-            package.json
+            Chiron/web/package-lock.json
+            Chiron/web/package.json
       - run: npm ci
       - run: npm run build
       - name: Upload build
