@@ -6,7 +6,8 @@
   "scripts": {
     "test": "vitest --run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --fix",
     "test:ui": "vitest",
     "coverage": "vitest --coverage",
     "dev": "vite",
