@@ -32,7 +32,12 @@ jobs:
           cache-dependency-path: |
             Chiron/web/package-lock.json
             Chiron/web/package.json
-      - run: npm ci
+      - run: |
+          if [ -f Chiron/web/package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
       - run: npm run build
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

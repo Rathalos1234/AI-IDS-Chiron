@@ -118,7 +118,12 @@ jobs:
       - name: Install deps
         working-directory: Chiron/web
         if: steps.cache-npm.outputs.cache-hit != 'true'
-        run: npm ci
+        run: |
+          if [ -f Chiron/web/package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
   # lint:
   #   name: Lint
@@ -146,7 +151,12 @@ jobs:
           cache-dependency-path: |
             Chiron/web/package-lock.json
             Chiron/web/package.json
-      - run: npm ci
+      - run: |
+          if [ -f Chiron/web/package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
       - run: npm run typecheck
 
   unit:
@@ -163,7 +173,12 @@ jobs:
           cache-dependency-path: |
             Chiron/web/package-lock.json
             Chiron/web/package.json
-      - run: npm ci
+      - run: |
+          if [ -f Chiron/web/package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
       - run: npm run coverage
       - name: Upload coverage
         uses: actions/upload-artifact@v4
@@ -187,7 +202,12 @@ jobs:
           cache-dependency-path: |
             Chiron/web/package-lock.json
             Chiron/web/package.json
-      - run: npm ci
+      - run: |
+          if [ -f Chiron/web/package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
       - run: npm run build
       - name: Upload build
         uses: actions/upload-artifact@v4
