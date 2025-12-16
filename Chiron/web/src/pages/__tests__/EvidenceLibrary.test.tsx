@@ -61,5 +61,5 @@ test('renders evidence row and uploader name', async () => {
   )
 
   // The component shows a heading and the uploader's displayName
-  expect(await screen.findByText(/Evidence Library/i)).toBeTruthy()
+  expect(await screen.findByRole('heading', { name: /Evidence Library/i })).toBeTruthy()
 })
