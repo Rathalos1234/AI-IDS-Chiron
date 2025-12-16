@@ -37,7 +37,6 @@ export default function SidebarShell({
           <div className="nav-label">Compliance overview</div>
           <nav className="sidenav">
             <NavLink to="/" className={({isActive})=> isActive ? 'active' : ''}>Compliance Dashboard</NavLink>
-            <NavLink to="/tasks" className={({isActive})=> isActive ? 'active' : ''}>Tasks</NavLink>
           </nav>
         </div>
 
@@ -46,8 +45,6 @@ export default function SidebarShell({
           <nav className="sidenav">
             <NavLink to="/controls" className={({isActive})=> isActive ? 'active' : ''}>Controls</NavLink>
             <NavLink to="/spr" className={({isActive})=> isActive ? 'active' : ''}>SPRS Score</NavLink>
-            <NavLink to="/poams" className={({isActive})=> isActive ? 'active' : ''}>POAMs</NavLink>
-            <NavLink to="/policies" className={({isActive})=> isActive ? 'active' : ''}>Policies</NavLink>
             <NavLink to="/evidence" className={({isActive})=> isActive ? 'active' : ''}>Evidence Library</NavLink>
           </nav>
         </div>
@@ -57,7 +54,7 @@ export default function SidebarShell({
           <nav className="sidenav">
             <NavLink to="/ids/dashboard" className={({isActive})=> isActive ? 'active' : ''}>IDS Dashboard</NavLink>
             <NavLink to="/ids/alerts" className={({isActive})=> isActive ? 'active' : ''}>Alerts</NavLink>
-            <NavLink to="/ids/blocks" className={({isActive})=> isActive ? 'active' : ''}>Blocked IPs</NavLink>
+            <NavLink to="/ids/blocks" className={({isActive})=> isActive ? 'active' : ''}>Ban List</NavLink>
             <NavLink to="/ids/devices" className={({isActive})=> isActive ? 'active' : ''}>Devices</NavLink>
             <NavLink to="/ids/logs" className={({isActive})=> isActive ? 'active' : ''}>Logs</NavLink>
           </nav>
